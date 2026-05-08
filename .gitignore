@@ -14,6 +14,7 @@ build/
 # Vector DB / model caches
 chroma_db/
 data/products.json
+data/text_index.json
 data/shopify_import.csv
 data/shopify_sync_report.json
 data/kaggle_raw/
