@@ -33,6 +33,16 @@ class Settings:
     GROQ_MODEL: str = getenv("GROQ_MODEL", "llama-3.1-8b-instant") or "llama-3.1-8b-instant"
     GEMINI_MODEL: str = getenv("GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash"
 
+    # LangSmith observability (Phase 3+)
+    LANGCHAIN_TRACING_V2: bool = (getenv("LANGCHAIN_TRACING_V2", "true") or "true").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    LANGCHAIN_API_KEY: str | None = getenv("LANGCHAIN_API_KEY")
+    LANGCHAIN_PROJECT: str = getenv("LANGCHAIN_PROJECT", "SmartShop") or "SmartShop"
+
 
 settings = Settings()
 
