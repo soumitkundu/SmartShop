@@ -173,3 +173,41 @@ GEMINI_MODEL=gemini-2.0-flash-lite
 
 - TO set Groq primary + Gemini fallback, keep `LLM_PROVIDER=groq`.
 - To set Gemini primary + Groq fallback, set `LLM_PROVIDER=gemini`.
+
+---
+
+## Phase 3 — LangGraph Skeleton (Text path through graph)
+
+Text queries now flow through a LangGraph agent:
+
+`router -> fuser -> retriever -> generator`
+
+LangSmith tracing is **enabled by default** (`LANGCHAIN_TRACING_V2=true`).
+
+### Setup
+
+1. Add LangSmith credentials to `.env` (from `example.env`):
+   - `LANGCHAIN_API_KEY=lsv2_...`
+   - `LANGCHAIN_PROJECT=SmartShop`
+2. Install Phase 3 dependencies:
+   - `py -m pip install -r requirements.txt`
+3. Run API:
+   - `uvicorn backend.main:app --reload`
+
+### Phase 3 test script
+
+```powershell
+py scripts/test_langgraph.py
+```
+
+This verifies:
+- Same `/api/search` response contract as Phase 2
+- Node execution order: `router -> fuser -> retriever -> generator`
+- Out-of-catalog rejection still works
+
+### LangSmith
+
+1. Sign up at [smith.langchain.com](https://smith.langchain.com)
+2. Create an API key under **Settings → API Keys**
+3. Add it to `.env` as `LANGCHAIN_API_KEY`
+4. After a query, open your **SmartShop** project in LangSmith to inspect per-node traces
