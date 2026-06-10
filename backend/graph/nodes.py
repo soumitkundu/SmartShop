@@ -3,6 +3,7 @@ import logging
 from backend.config import settings
 from backend.graph.state import AgentState
 from backend.llm import generate_answer
+from backend.processors.voice import transcribe
 from backend.rag.prompt import OUT_OF_CATALOG_REPLY, build_catalog_prompt, should_reject_query
 from backend.rag.retriever import TextRetriever
 
@@ -31,9 +32,18 @@ def route_inputs(state: AgentState) -> dict:
 
 
 def process_voice(state: AgentState) -> dict:
-    """Whisper STT — implemented in Phase 4."""
-    logger.warning("[voice] Voice processing is not enabled until Phase 4")
-    return {"node_trace": ["voice"]}
+    """Run Whisper STT on uploaded or recorded audio."""
+    audio_bytes = state.get("audio_bytes")
+    if not audio_bytes:
+        return {"node_trace": ["voice"]}
+
+    suffix = state.get("audio_suffix") or ".wav"
+    transcribed = transcribe(audio_bytes, suffix=suffix)
+    logger.info("[voice] transcribed=%r", transcribed[:120] if transcribed else "")
+    return {
+        "transcribed_text": transcribed,
+        "node_trace": ["voice"],
+    }
 
 
 def process_image(state: AgentState) -> dict:

@@ -211,3 +211,114 @@ This verifies:
 2. Create an API key under **Settings → API Keys**
 3. Add it to `.env` as `LANGCHAIN_API_KEY`
 4. After a query, open your **SmartShop** project in LangSmith to inspect per-node traces
+
+---
+
+## Phase 4 — Voice Input (Whisper)
+
+Voice queries are transcribed locally with **OpenAI Whisper** (offline, no API cost) and routed through the LangGraph `voice` node before retrieval.
+
+Supported input modes on `POST /api/search`:
+
+- **Text only** (unchanged from Phase 3)
+- **Voice only** — upload `audio_file` (WAV, MP3, OGG, M4A, etc.)
+- **Text + voice** — typed `text` is fused with the Whisper transcription
+
+Image upload is still blocked until Phase 5.
+
+### Graph paths
+
+- Text only: `router -> fuser -> retriever -> generator`
+- Voice (with or without text): `router -> voice -> fuser -> retriever -> generator`
+
+### Implemented (code)
+
+Added:
+
+- `backend/processors/voice.py` — Whisper model load + `transcribe(audio_bytes, suffix)`
+- Wired `process_voice` in `backend/graph/nodes.py`
+- Updated `POST /api/search` in `backend/main.py` to accept `audio_file`
+- `scripts/test_voice.py` — Phase 4 validation script
+- `openai-whisper` in `requirements.txt`
+- `WHISPER_MODEL` in `example.env` (default: `base`)
+
+### Prerequisites
+
+1. **ffmpeg** must be on your PATH (Whisper uses it to decode audio).
+   - Verify: `ffmpeg -version`
+2. Add to `.env` (optional — `base` is the default):
+
+```env
+WHISPER_MODEL=base   # tiny | base | small | medium
+```
+
+| Model  | Size  | Speed (CPU) | Recommended for        |
+|--------|-------|-------------|------------------------|
+| `tiny` | 39 MB | Very fast   | Quick dev smoke tests  |
+| `base` | 74 MB | Fast        | **Default — best balance** |
+| `small`| 244 MB| Moderate    | Better accuracy        |
+
+### Install Phase 4 dependencies
+
+```powershell
+py -m pip install -r requirements.txt
+```
+
+On Windows, if `openai-whisper` fails to build:
+
+```powershell
+py -m pip install setuptools wheel
+py -m pip install --no-build-isolation openai-whisper==20240930
+```
+
+The first voice request downloads the Whisper model (~74 MB for `base`).
+
+### Phase 4 test script
+
+Text regression (no audio file needed):
+
+```powershell
+py scripts/test_voice.py
+```
+
+Full voice integration (provide your own audio, or generate a sample):
+
+```powershell
+py -m pip install gtts
+py -c "from gtts import gTTS; gTTS('show me walking shoes under two thousand').save('data/test_voice_query.mp3')"
+py scripts/test_voice.py --audio-file data/test_voice_query.mp3
+```
+
+This verifies:
+
+- Text-only path still works (`router -> fuser -> retriever -> generator`)
+- Voice-only transcription and search (`router -> voice -> fuser -> retriever -> generator`)
+- Text + voice fusion in `fused_query`
+- API returns `transcribed_text` and `fused_query` in the JSON response
+
+### Manual API test
+
+Start the server:
+
+```powershell
+uvicorn backend.main:app --reload
+```
+
+Send a multipart form request to `POST /api/search` with:
+
+- `session_id` (required)
+- `audio_file` (optional) — recorded or uploaded audio
+- `text` (optional) — at least one of `text` or `audio_file` is required
+
+Example response fields:
+
+```json
+{
+  "session_id": "...",
+  "transcribed_text": "show me walking shoes under 2000",
+  "fused_query": "budget option show me walking shoes under 2000",
+  "answer": "...",
+  "products": [...],
+  "node_trace": ["router", "voice", "fuser", "retriever", "generator"]
+}
+```
