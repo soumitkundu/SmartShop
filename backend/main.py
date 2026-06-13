@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings
 from backend.graph.agent import get_agent
 from backend.graph.state import AgentState
+from backend.processors.image import ImageEncodingError
 from backend.processors.voice import TranscriptionError
 from backend.rag.retriever import TextRetriever
 
@@ -52,12 +53,10 @@ async def search(
     image_file: UploadFile | None = File(None),
     session_id: str = Form(...),
 ):
-    if image_file is not None:
-        raise HTTPException(status_code=400, detail="Image upload is not supported until Phase 5.")
-
     text_input = text.strip() if text and text.strip() else None
     audio_bytes: bytes | None = None
     audio_suffix: str | None = None
+    image_bytes: bytes | None = None
 
     if audio_file is not None:
         audio_bytes = await audio_file.read()
@@ -65,10 +64,15 @@ async def search(
         if not audio_bytes:
             raise HTTPException(status_code=400, detail="Audio file is empty.")
 
-    if not text_input and not audio_bytes:
+    if image_file is not None:
+        image_bytes = await image_file.read()
+        if not image_bytes:
+            raise HTTPException(status_code=400, detail="Image file is empty.")
+
+    if not text_input and not audio_bytes and not image_bytes:
         raise HTTPException(
             status_code=400,
-            detail="Provide `text` and/or `audio_file` (at least one is required).",
+            detail="Provide at least one of `text`, `audio_file`, or `image_file`.",
         )
 
     _ensure_text_index()
@@ -77,10 +81,11 @@ async def search(
         "text_input": text_input,
         "audio_bytes": audio_bytes,
         "audio_suffix": audio_suffix,
-        "image_bytes": None,
+        "image_bytes": image_bytes,
         "session_id": session_id,
         "transcribed_text": None,
         "image_vector": None,
+        "image_error": None,
         "fused_query": None,
         "retrieved_docs": [],
         "context": None,
@@ -96,6 +101,8 @@ async def search(
         result = await agent.ainvoke(initial_state)
     except TranscriptionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ImageEncodingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     node_trace = result.get("node_trace") or []
     logging.getLogger(__name__).info("Graph node_trace: %s", " -> ".join(node_trace))
@@ -105,6 +112,7 @@ async def search(
         "rejected": bool(result.get("rejected")),
         "answer": result.get("response"),
         "transcribed_text": result.get("transcribed_text"),
+        "image_error": result.get("image_error"),
         "fused_query": result.get("fused_query"),
         "products": result.get("retrieved_docs") or [],
         "provider": result.get("provider"),

@@ -17,3 +17,16 @@ langsmith==0.3.32
 #   pip install setuptools wheel
 #   pip install --no-build-isolation openai-whisper==20240930
 openai-whisper==20240930
+
+# Phase 5 — CLIP image embeddings + ChromaDB image collection
+numpy<2
+chromadb==0.5.23
+torch==2.2.2
+torchvision==0.17.2
+pillow==10.4.0
+ftfy==6.2.3
+regex==2024.9.11
+# Windows tip: if pip build fails, run:
+#   pip install setuptools wheel
+#   pip install --no-build-isolation git+https://github.com/openai/CLIP.git
+git+https://github.com/openai/CLIP.git

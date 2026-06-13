@@ -10,9 +10,10 @@ class AgentState(TypedDict, total=False):
     image_bytes: bytes | None
     session_id: str
 
-    # Processed signals (voice/image filled in later phases)
+    # Processed signals
     transcribed_text: str | None
     image_vector: list[float] | None
+    image_error: str | None
     fused_query: str | None
 
     # RAG outputs
