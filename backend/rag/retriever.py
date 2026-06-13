@@ -4,6 +4,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+import chromadb
+
 
 TOKEN_RE = re.compile(r"[a-z0-9]+")
 
@@ -88,3 +90,88 @@ class TextRetriever:
             product["score"] = round(score, 4)
             out.append(product)
         return out
+
+
+def _metadata_to_product(metadata: dict[str, Any], score: float) -> dict[str, Any]:
+    tags_raw = metadata.get("tags") or ""
+    tags = [t.strip() for t in str(tags_raw).split(",") if t.strip()]
+    return {
+        "handle": metadata.get("handle"),
+        "title": metadata.get("title"),
+        "vendor": metadata.get("vendor"),
+        "type": metadata.get("type"),
+        "tags": tags,
+        "price": metadata.get("price"),
+        "inventory_quantity": metadata.get("inventory_quantity"),
+        "image_url": metadata.get("image_url"),
+        "score": round(score, 4),
+    }
+
+
+class ImageRetriever:
+    def __init__(self, chroma_path: str, collection_name: str):
+        self.chroma_path = Path(chroma_path)
+        self.collection_name = collection_name
+        self._collection = None
+        self._load_collection()
+
+    def _load_collection(self) -> None:
+        if not self.chroma_path.exists():
+            raise FileNotFoundError(
+                f"ChromaDB path not found at {self.chroma_path}. "
+                "Run scripts/embed_product_images.py first."
+            )
+
+        client = chromadb.PersistentClient(path=str(self.chroma_path))
+        try:
+            self._collection = client.get_collection(name=self.collection_name)
+        except Exception as exc:
+            raise FileNotFoundError(
+                f"Image collection '{self.collection_name}' not found in {self.chroma_path}. "
+                "Run scripts/embed_product_images.py first."
+            ) from exc
+
+    def search(self, image_vector: list[float], top_k: int = 5) -> list[dict[str, Any]]:
+        if not image_vector:
+            return []
+
+        results = self._collection.query(
+            query_embeddings=[image_vector],
+            n_results=top_k,
+            include=["metadatas", "distances", "documents"],
+        )
+
+        metadatas = (results.get("metadatas") or [[]])[0]
+        distances = (results.get("distances") or [[]])[0]
+        if not metadatas:
+            return []
+
+        out: list[dict[str, Any]] = []
+        for metadata, distance in zip(metadatas, distances):
+            if not metadata:
+                continue
+            score = max(0.0, 1.0 - float(distance))
+            if score <= 0.0:
+                continue
+            out.append(_metadata_to_product(metadata, score))
+        return out
+
+
+def merge_retrieval_results(
+    text_hits: list[dict[str, Any]],
+    image_hits: list[dict[str, Any]],
+    top_k: int,
+) -> list[dict[str, Any]]:
+    """Merge text and image hits, deduplicating by handle and keeping the best score."""
+    merged: dict[str, dict[str, Any]] = {}
+
+    for hit in text_hits + image_hits:
+        key = str(hit.get("handle") or hit.get("title") or "")
+        if not key:
+            continue
+        existing = merged.get(key)
+        if existing is None or hit.get("score", 0.0) > existing.get("score", 0.0):
+            merged[key] = hit
+
+    ranked = sorted(merged.values(), key=lambda item: item.get("score", 0.0), reverse=True)
+    return ranked[:top_k]

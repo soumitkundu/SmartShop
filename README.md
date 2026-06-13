@@ -224,7 +224,7 @@ Supported input modes on `POST /api/search`:
 - **Voice only** — upload `audio_file` (WAV, MP3, OGG, M4A, etc.)
 - **Text + voice** — typed `text` is fused with the Whisper transcription
 
-Image upload is still blocked until Phase 5.
+Image upload is handled in Phase 5 (see below).
 
 ### Graph paths
 
@@ -322,3 +322,168 @@ Example response fields:
   "node_trace": ["router", "voice", "fuser", "retriever", "generator"]
 }
 ```
+
+---
+
+## Phase 5 — Image Retrieval (CLIP + ChromaDB)
+
+Image queries are encoded locally with **OpenAI CLIP** (`ViT-B/32`) and matched against product photos stored in a ChromaDB **`shopify_images`** collection. Image search works alone or fused with text/voice signals from earlier phases.
+
+Supported input modes on `POST /api/search`:
+
+- **Text only** (unchanged from Phase 3)
+- **Voice only** / **Text + voice** (unchanged from Phase 4)
+- **Image only** — upload `image_file` (JPEG, PNG, WebP)
+- **Text + image** — typed `text` fused with CLIP image retrieval
+- **Voice + image** — Whisper transcription + image in one request (voice runs first, then image)
+
+Full **text + voice + image** fusion is refined in Phase 6.
+
+### Graph paths
+
+- Text only: `router -> fuser -> retriever -> generator`
+- Image only: `router -> image -> fuser -> retriever -> generator`
+- Text + image: `router -> image -> fuser -> retriever -> generator`
+- Voice + image: `router -> voice -> image -> fuser -> retriever -> generator`
+- Voice (with or without text, no image): `router -> voice -> fuser -> retriever -> generator`
+
+### Implemented (code)
+
+Added:
+
+- `backend/processors/image.py` — CLIP model load + `encode_image(image_bytes)`
+- `scripts/embed_product_images.py` — downloads catalog images from `products.json`, embeds with CLIP, writes to ChromaDB
+- `ImageRetriever` + `merge_retrieval_results()` in `backend/rag/retriever.py`
+- Wired `process_image` in `backend/graph/nodes.py` with image-only, fused, and fallback behavior
+- Updated `POST /api/search` in `backend/main.py` to accept `image_file`
+- `scripts/test_image.py` — Phase 5 validation script
+- Phase 5 deps in `requirements.txt`: `chromadb`, `torch`, `torchvision`, `clip`, `numpy<2`
+- `CLIP_MODEL`, `CHROMA_PATH`, `IMAGE_COLLECTION_NAME` in `example.env`
+
+### Prerequisites
+
+1. **`data/products.json`** must include valid `image_url` fields (from Phase 1 `format_kaggle.py`).
+2. **Text index** should already exist (Phase 2):
+
+```powershell
+py scripts/embed_products.py --input data/products.json --out data/text_index.json
+```
+
+3. Add to `.env` (optional — defaults shown):
+
+```env
+CHROMA_PATH=./chroma_db
+IMAGE_COLLECTION_NAME=shopify_images
+CLIP_MODEL=ViT-B/32
+```
+
+4. **NumPy compatibility:** torch 2.2.x requires `numpy<2`. This is pinned in `requirements.txt`. If you see `_ARRAY_API not found` or zero images indexed, run:
+
+```powershell
+py -m pip install "numpy<2"
+```
+
+### Install Phase 5 dependencies
+
+```powershell
+py -m pip install -r requirements.txt
+```
+
+On Windows, if CLIP fails to install:
+
+```powershell
+py -m pip install setuptools wheel
+py -m pip install --no-build-isolation git+https://github.com/openai/CLIP.git
+```
+
+The first image request downloads the CLIP model (~338 MB for `ViT-B/32`).
+
+### Build the image index
+
+Embed all product images into ChromaDB (one-time per catalog refresh):
+
+```powershell
+py scripts/embed_product_images.py --input data/products.json
+```
+
+Quick smoke test with fewer products:
+
+```powershell
+py scripts/embed_product_images.py --input data/products.json --limit 20
+```
+
+Expected output: `Indexed N product images -> ./chroma_db/shopify_images`. Products without a valid `image_url` are skipped with a log line.
+
+### Phase 5 test script
+
+Text regression (no image file needed):
+
+```powershell
+py scripts/test_image.py
+```
+
+Full image integration (use a catalog product photo):
+
+```powershell
+py scripts/test_image.py --image-file data/test_product.jpg
+```
+
+Optional text+image and voice+image checks:
+
+```powershell
+py scripts/test_image.py --image-file data/test_product.jpg --text-with-image "similar style"
+py scripts/test_image.py --image-file data/test_product.jpg --audio-file data/test_voice_query.mp3
+```
+
+This verifies:
+
+- Text-only path still works (`router -> fuser -> retriever -> generator`)
+- CLIP encoding + ChromaDB image search (`router -> image -> fuser -> retriever -> generator`)
+- Text + image fused retrieval
+- API returns `image_error` (if encoding fails), `fused_query`, and `node_trace`
+
+### Manual API test
+
+Start the server:
+
+```powershell
+uvicorn backend.main:app --reload
+```
+
+Send a multipart form request to `POST /api/search` with:
+
+- `session_id` (required)
+- `image_file` (optional) — JPEG, PNG, or WebP product photo
+- `text` (optional)
+- `audio_file` (optional) — at least one of `text`, `audio_file`, or `image_file` is required
+
+Example response fields (image-only):
+
+```json
+{
+  "session_id": "...",
+  "transcribed_text": null,
+  "image_error": null,
+  "fused_query": "",
+  "answer": "...",
+  "products": [...],
+  "node_trace": ["router", "image", "fuser", "retriever", "generator"]
+}
+```
+
+### Phase 5 validation status
+
+All phase test scripts pass on the current catalog:
+
+| Phase | Script | Status |
+|-------|--------|--------|
+| 2 — Text RAG | `scripts/test_text_rag.py` | PASS |
+| 3 — LangGraph | `scripts/test_langgraph.py` | PASS |
+| 4 — Voice | `scripts/test_voice.py` | PASS |
+| 5 — Image | `scripts/test_image.py` | PASS |
+
+### Known notes
+
+- **ChromaDB telemetry warnings** (`Failed to send telemetry event...`) are harmless and do not affect search.
+- **Bad image URLs** in source data are skipped during indexing (check embed script output).
+- **Voice + image + text** combo testing expands in Phase 6.

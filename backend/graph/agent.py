@@ -49,6 +49,13 @@ def decide_next_nodes(state: AgentState) -> str:
     return "fuser"
 
 
+def after_voice(state: AgentState) -> str:
+    """After STT, process image if one was uploaded in the same request."""
+    if state.get("image_bytes"):
+        return "image"
+    return "fuser"
+
+
 def build_agent():
     """Compile the LangGraph agent (text path: router → fuser → retriever → generator)."""
     _configure_langsmith()
@@ -73,7 +80,14 @@ def build_agent():
         },
     )
 
-    graph.add_edge("voice", "fuser")
+    graph.add_conditional_edges(
+        "voice",
+        after_voice,
+        {
+            "image": "image",
+            "fuser": "fuser",
+        },
+    )
     graph.add_edge("image", "fuser")
     graph.add_edge("fuser", "retriever")
     graph.add_edge("retriever", "generator")

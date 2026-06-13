@@ -20,11 +20,15 @@ class Settings:
     # RAG / retrieval knobs (used later)
     TOP_K_RESULTS: int = int(getenv("TOP_K_RESULTS", "5") or 5)
     CHROMA_PATH: str = getenv("CHROMA_PATH", "./chroma_db") or "./chroma_db"
+    IMAGE_COLLECTION_NAME: str = getenv("IMAGE_COLLECTION_NAME", "shopify_images") or "shopify_images"
     PRODUCT_CATALOG_PATH: str = getenv("PRODUCT_CATALOG_PATH", "./data/products.json") or "./data/products.json"
     TEXT_INDEX_PATH: str = getenv("TEXT_INDEX_PATH", "./data/text_index.json") or "./data/text_index.json"
 
-    # Whisper model name (used later)
+    # Whisper model name (Phase 4)
     WHISPER_MODEL: str = getenv("WHISPER_MODEL", "base") or "base"
+
+    # CLIP model name (Phase 5)
+    CLIP_MODEL: str = getenv("CLIP_MODEL", "ViT-B/32") or "ViT-B/32"
 
     # LLM provider keys (used later)
     GROQ_API_KEY: str | None = getenv("GROQ_API_KEY")
