@@ -1,11 +1,18 @@
 import logging
 
 from backend.config import settings
+from backend.graph.modality import detect_modalities, modality_label
 from backend.graph.state import AgentState
 from backend.llm import generate_answer
 from backend.processors.image import ImageEncodingError, encode_image
 from backend.processors.voice import transcribe
-from backend.rag.prompt import OUT_OF_CATALOG_REPLY, build_catalog_prompt, should_reject_query
+from backend.rag.prompt import (
+    OUT_OF_CATALOG_REPLY,
+    build_catalog_prompt,
+    build_retrieval_query,
+    build_user_turn_summary,
+    should_reject_query,
+)
 from backend.rag.retriever import ImageRetriever, TextRetriever, merge_retrieval_results
 
 logger = logging.getLogger(__name__)
@@ -34,12 +41,16 @@ def _get_image_retriever() -> ImageRetriever | None:
 
 def route_inputs(state: AgentState) -> dict:
     """Entry node — validates and logs which modalities are present."""
+    flags = detect_modalities(
+        state.get("text_input"),
+        state.get("audio_bytes"),
+        state.get("image_bytes"),
+    )
     logger.info(
-        "[router] text=%s audio=%s image=%s session=%s",
-        bool(state.get("text_input")),
-        bool(state.get("audio_bytes")),
-        bool(state.get("image_bytes")),
+        "[router] modality=%s session=%s history_turns=%d",
+        modality_label(flags),
         state.get("session_id"),
+        len(state.get("chat_history") or []) // 2,
     )
     return {"node_trace": ["router"]}
 
@@ -100,37 +111,52 @@ def fuse_inputs(state: AgentState) -> dict:
 
 def retrieve_products(state: AgentState) -> dict:
     """Query text and/or image indexes and apply store-scoped guardrails."""
-    query = (state.get("fused_query") or "").strip()
+    fused_query = (state.get("fused_query") or "").strip()
     image_vector = state.get("image_vector")
+    chat_history = state.get("chat_history") or []
+    retrieval_query = build_retrieval_query(
+        fused_query,
+        chat_history,
+        has_image=bool(image_vector),
+    )
+
     text_retriever = _get_text_retriever()
     image_retriever = _get_image_retriever()
 
     hits: list[dict] = []
-    if image_vector and query:
-        text_hits = text_retriever.search(query, top_k=settings.TOP_K_RESULTS)
+    if image_vector and retrieval_query:
+        text_hits = text_retriever.search(retrieval_query, top_k=settings.TOP_K_RESULTS)
         if image_retriever is not None:
             image_hits = image_retriever.search(image_vector, top_k=settings.TOP_K_RESULTS)
-            hits = merge_retrieval_results(text_hits, image_hits, settings.TOP_K_RESULTS)
+            hits = merge_retrieval_results(
+                text_hits,
+                image_hits,
+                settings.TOP_K_RESULTS,
+                rrf_k=settings.FUSION_RRF_K,
+                text_weight=settings.FUSION_TEXT_WEIGHT,
+                image_weight=settings.FUSION_IMAGE_WEIGHT,
+            )
         else:
             hits = text_hits
     elif image_vector and image_retriever is not None:
         hits = image_retriever.search(image_vector, top_k=settings.TOP_K_RESULTS)
-    elif query:
-        hits = text_retriever.search(query, top_k=settings.TOP_K_RESULTS)
+    elif retrieval_query:
+        hits = text_retriever.search(retrieval_query, top_k=settings.TOP_K_RESULTS)
 
-    prompt_query = query or ("visual product match" if image_vector else "")
+    prompt_query = retrieval_query or fused_query or ("visual product match" if image_vector else "")
     rejected = should_reject_query(prompt_query, hits)
 
     logger.info(
-        "[retriever] query=%r image=%s hits=%d rejected=%s top_score=%s",
-        query[:120] if query else "",
+        "[retriever] fused=%r retrieval=%r image=%s hits=%d rejected=%s top_score=%s",
+        fused_query[:120] if fused_query else "",
+        retrieval_query[:120] if retrieval_query else "",
         bool(image_vector),
         len(hits),
         rejected,
         hits[0].get("score") if hits else None,
     )
 
-    context = None if rejected else build_catalog_prompt(prompt_query, hits)
+    context = None if rejected else build_catalog_prompt(prompt_query, hits, chat_history)
     return {
         "retrieved_docs": hits,
         "context": context,
@@ -141,15 +167,28 @@ def retrieve_products(state: AgentState) -> dict:
 
 async def generate_response(state: AgentState) -> dict:
     """Call the LLM with retrieved context, or return the out-of-catalog reply."""
+    flags = detect_modalities(
+        state.get("text_input"),
+        state.get("audio_bytes"),
+        state.get("image_bytes"),
+    )
+    user_turn = build_user_turn_summary(
+        state.get("text_input"),
+        state.get("transcribed_text"),
+        has_image=flags["has_image"],
+    )
+
     if state.get("image_error") and not state.get("fused_query") and not state.get("retrieved_docs"):
         logger.info("[generator] image processing failed with no text fallback")
+        response = (
+            "I could not process the uploaded image. "
+            f"{state['image_error']} "
+            "Try a clearer JPEG/PNG photo or add a text description."
+        )
         return {
-            "response": (
-                "I could not process the uploaded image. "
-                f"{state['image_error']} "
-                "Try a clearer JPEG/PNG photo or add a text description."
-            ),
+            "response": response,
             "provider": None,
+            "user_turn_summary": user_turn,
             "node_trace": ["generator"],
         }
 
@@ -158,6 +197,7 @@ async def generate_response(state: AgentState) -> dict:
         return {
             "response": OUT_OF_CATALOG_REPLY,
             "provider": None,
+            "user_turn_summary": user_turn,
             "node_trace": ["generator"],
         }
 
@@ -170,6 +210,7 @@ async def generate_response(state: AgentState) -> dict:
         return {
             "response": answer,
             "provider": provider,
+            "user_turn_summary": user_turn,
             "node_trace": ["generator"],
         }
     except Exception as exc:
@@ -180,5 +221,6 @@ async def generate_response(state: AgentState) -> dict:
                 "Returning top products directly."
             ),
             "provider": None,
+            "user_turn_summary": user_turn,
             "node_trace": ["generator"],
         }

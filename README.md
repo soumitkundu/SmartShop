@@ -481,9 +481,67 @@ All phase test scripts pass on the current catalog:
 | 3 — LangGraph | `scripts/test_langgraph.py` | PASS |
 | 4 — Voice | `scripts/test_voice.py` | PASS |
 | 5 — Image | `scripts/test_image.py` | PASS |
+| 6 — Fusion + Memory | `scripts/test_fusion_memory.py` | PASS |
 
 ### Known notes
 
 - **ChromaDB telemetry warnings** (`Failed to send telemetry event...`) are harmless and do not affect search.
 - **Bad image URLs** in source data are skipped during indexing (check embed script output).
-- **Voice + image + text** combo testing expands in Phase 6.
+
+---
+
+## Phase 6 — Full Multimodal Fusion + Memory
+
+Phase 6 completes the multimodal pipeline: all **7 input combinations**, **weighted RRF rank fusion** when text and image retrieval run together, and **bounded session memory** for multi-turn shopping conversations.
+
+### Supported modality combinations
+
+| Combo | Graph trace |
+|-------|-------------|
+| Text only | `router → fuser → retriever → generator` |
+| Voice only | `router → voice → fuser → retriever → generator` |
+| Image only | `router → image → fuser → retriever → generator` |
+| Text + voice | `router → voice → fuser → retriever → generator` |
+| Text + image | `router → image → fuser → retriever → generator` |
+| Voice + image | `router → voice → image → fuser → retriever → generator` |
+| Text + voice + image | `router → voice → image → fuser → retriever → generator` |
+
+### Memory policy (default: 6 turns)
+
+`MEMORY_WINDOW_TURNS=6` keeps the last **6 user+assistant turn pairs** per `session_id` (12 messages). This is a practical default for e-commerce:
+
+- Enough for browse → filter → compare → follow-up flows
+- Low token cost vs an unbounded buffer
+- Tunable in production via `.env` without code changes
+
+Clear a session: `DELETE /api/session/{session_id}`
+
+### Rank fusion
+
+When both text and image signals are present, results are merged with **reciprocal rank fusion (RRF)** instead of comparing incompatible raw scores. Products that match both modalities rank higher.
+
+Env knobs: `FUSION_RRF_K`, `FUSION_TEXT_WEIGHT`, `FUSION_IMAGE_WEIGHT`
+
+### Phase 6 test script
+
+```powershell
+py scripts/test_fusion_memory.py
+```
+
+Full modality matrix (needs sample media):
+
+```powershell
+py scripts/test_fusion_memory.py --image-file data/test_product.jpg --audio-file data/test_voice_query.mp3
+```
+
+### API response additions
+
+- `modality` — e.g. `text+image`
+- `memory_turns` — turns stored for this session after the request
+- `expected_trace` — graph path for the request modality
+
+### Phase 6 validation status
+
+| Phase | Script | Status |
+|-------|--------|--------|
+| 6 — Fusion + Memory | `scripts/test_fusion_memory.py` | PASS |

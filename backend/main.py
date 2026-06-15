@@ -6,7 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
 from backend.graph.agent import get_agent
+from backend.graph.modality import detect_modalities, expected_graph_trace, modality_label
 from backend.graph.state import AgentState
+from backend.memory.session_store import get_session_store
 from backend.processors.image import ImageEncodingError
 from backend.processors.voice import TranscriptionError
 from backend.rag.retriever import TextRetriever
@@ -46,6 +48,13 @@ def _audio_suffix_from_filename(filename: str | None) -> str:
     return f".{filename.rsplit('.', 1)[-1].lower()}"
 
 
+@app.delete("/api/session/{session_id}")
+def clear_session(session_id: str):
+    """Clear bounded conversation memory for a session."""
+    get_session_store().clear(session_id)
+    return {"session_id": session_id, "cleared": True}
+
+
 @app.post("/api/search")
 async def search(
     text: str | None = Form(None),
@@ -77,6 +86,9 @@ async def search(
 
     _ensure_text_index()
 
+    memory = get_session_store()
+    chat_history = memory.get_messages(session_id)
+
     initial_state: AgentState = {
         "text_input": text_input,
         "audio_bytes": audio_bytes,
@@ -92,7 +104,8 @@ async def search(
         "rejected": False,
         "response": None,
         "provider": None,
-        "chat_history": [],
+        "user_turn_summary": None,
+        "chat_history": chat_history,
         "node_trace": [],
     }
 
@@ -107,14 +120,26 @@ async def search(
     node_trace = result.get("node_trace") or []
     logging.getLogger(__name__).info("Graph node_trace: %s", " -> ".join(node_trace))
 
+    response_text = result.get("response")
+    user_turn = (result.get("user_turn_summary") or "").strip()
+    if not user_turn:
+        user_turn = (result.get("fused_query") or text_input or "").strip()
+    if response_text and user_turn:
+        chat_history = memory.append_turn(session_id, user_turn, response_text)
+
+    flags = detect_modalities(text_input, audio_bytes, image_bytes)
+
     return {
         "session_id": session_id,
+        "modality": modality_label(flags),
         "rejected": bool(result.get("rejected")),
-        "answer": result.get("response"),
+        "answer": response_text,
         "transcribed_text": result.get("transcribed_text"),
         "image_error": result.get("image_error"),
         "fused_query": result.get("fused_query"),
         "products": result.get("retrieved_docs") or [],
         "provider": result.get("provider"),
+        "memory_turns": len(chat_history) // 2,
         "node_trace": node_trace,
+        "expected_trace": expected_graph_trace(flags),
     }
