@@ -157,21 +157,59 @@ class ImageRetriever:
         return out
 
 
+def _product_key(hit: dict[str, Any]) -> str:
+    return str(hit.get("handle") or hit.get("title") or "")
+
+
 def merge_retrieval_results(
     text_hits: list[dict[str, Any]],
     image_hits: list[dict[str, Any]],
     top_k: int,
+    *,
+    rrf_k: int = 60,
+    text_weight: float = 1.0,
+    image_weight: float = 1.0,
 ) -> list[dict[str, Any]]:
-    """Merge text and image hits, deduplicating by handle and keeping the best score."""
-    merged: dict[str, dict[str, Any]] = {}
+    """Merge text and image hits with weighted reciprocal rank fusion (RRF).
 
-    for hit in text_hits + image_hits:
-        key = str(hit.get("handle") or hit.get("title") or "")
+    RRF avoids comparing incompatible raw scores (TF-IDF cosine vs CLIP distance).
+    Products appearing in both lists get a boost from combined ranks.
+    """
+    if not text_hits:
+        return image_hits[:top_k]
+    if not image_hits:
+        return text_hits[:top_k]
+
+    fusion_scores: dict[str, float] = {}
+    docs: dict[str, dict[str, Any]] = {}
+    text_scores: dict[str, float] = {}
+    image_scores: dict[str, float] = {}
+
+    for rank, hit in enumerate(text_hits):
+        key = _product_key(hit)
         if not key:
             continue
-        existing = merged.get(key)
-        if existing is None or hit.get("score", 0.0) > existing.get("score", 0.0):
-            merged[key] = hit
+        text_scores[key] = float(hit.get("score", 0.0))
+        fusion_scores[key] = fusion_scores.get(key, 0.0) + text_weight / (rrf_k + rank + 1)
+        docs[key] = dict(hit)
 
-    ranked = sorted(merged.values(), key=lambda item: item.get("score", 0.0), reverse=True)
-    return ranked[:top_k]
+    for rank, hit in enumerate(image_hits):
+        key = _product_key(hit)
+        if not key:
+            continue
+        image_scores[key] = float(hit.get("score", 0.0))
+        fusion_scores[key] = fusion_scores.get(key, 0.0) + image_weight / (rrf_k + rank + 1)
+        if key not in docs:
+            docs[key] = dict(hit)
+
+    ranked_keys = sorted(fusion_scores.keys(), key=lambda k: fusion_scores[k], reverse=True)
+
+    out: list[dict[str, Any]] = []
+    for key in ranked_keys[:top_k]:
+        product = dict(docs[key])
+        product["fusion_score"] = round(fusion_scores[key], 6)
+        product["text_score"] = round(text_scores.get(key, 0.0), 4)
+        product["image_score"] = round(image_scores.get(key, 0.0), 4)
+        product["score"] = product["fusion_score"]
+        out.append(product)
+    return out

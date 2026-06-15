@@ -19,6 +19,14 @@ class Settings:
 
     # RAG / retrieval knobs (used later)
     TOP_K_RESULTS: int = int(getenv("TOP_K_RESULTS", "5") or 5)
+
+    # Phase 6 — bounded conversation memory (user+assistant turn pairs)
+    MEMORY_WINDOW_TURNS: int = int(getenv("MEMORY_WINDOW_TURNS", "6") or 6)
+
+    # Phase 6 — multimodal rank fusion (reciprocal rank fusion)
+    FUSION_RRF_K: int = int(getenv("FUSION_RRF_K", "60") or 60)
+    FUSION_TEXT_WEIGHT: float = float(getenv("FUSION_TEXT_WEIGHT", "1.0") or 1.0)
+    FUSION_IMAGE_WEIGHT: float = float(getenv("FUSION_IMAGE_WEIGHT", "1.0") or 1.0)
     CHROMA_PATH: str = getenv("CHROMA_PATH", "./chroma_db") or "./chroma_db"
     IMAGE_COLLECTION_NAME: str = getenv("IMAGE_COLLECTION_NAME", "shopify_images") or "shopify_images"
     PRODUCT_CATALOG_PATH: str = getenv("PRODUCT_CATALOG_PATH", "./data/products.json") or "./data/products.json"

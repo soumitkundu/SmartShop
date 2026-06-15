@@ -24,6 +24,7 @@ class AgentState(TypedDict, total=False):
     # Final output
     response: str | None
     provider: str | None
+    user_turn_summary: str | None
     chat_history: list[Any]
 
     # Observability — each node appends its name
