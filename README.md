@@ -545,3 +545,53 @@ py scripts/test_fusion_memory.py --image-file data/test_product.jpg --audio-file
 | Phase | Script | Status |
 |-------|--------|--------|
 | 6 — Fusion + Memory | `scripts/test_fusion_memory.py` | PASS |
+
+---
+
+## Phase 7 — Chainlit Frontend UX
+
+Phase 7 adds a Chainlit chat frontend that connects to `POST /api/search` and renders rich product cards when relevant items are retrieved.
+
+### Implemented (code)
+
+Added:
+
+- `frontend/app.py` — Chainlit app with:
+  - text, image, and audio input support
+  - backend timeout/error handling
+  - rich product card rendering
+  - Shopify product links opening in a new tab (`target="_blank"`)
+- `chainlit` dependency in `requirements.txt`
+- frontend env knobs in `example.env`:
+  - `BACKEND_SEARCH_URL`
+  - `CHAINLIT_REQUEST_TIMEOUT_SECONDS`
+
+- fixed package dependancy conflicts in `requirements.txt`
+  - fastapi==0.115.3
+  - uvicorn[standard]==0.25.0
+- allowed rich HTML code in Chainlit UX: `.chainlit/config.toml`
+  - unsafe_allow_html = true
+
+### Run Phase 7
+
+1. Install dependencies:
+
+```powershell
+py -m pip install -r requirements.txt
+```
+
+2. Start backend:
+
+```powershell
+uvicorn backend.main:app --reload
+```
+
+3. Start Chainlit frontend (new terminal):
+
+```powershell
+chainlit run frontend/app.py -w --port 8080
+```
+
+4. Open the Chainlit URL shown in terminal and ask product queries.
+
+When similar products are found, the UI shows product cards with image, brand, price, stock, and a direct Shopify product link.
