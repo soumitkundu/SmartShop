@@ -107,7 +107,7 @@ py -m scripts.sync_shopify --limit 50 --overwrite
 3. Build text index:
    - `py scripts/embed_products.py --input data/products.json --out data/text_index.json`
 4. Run API:
-   - `uvicorn backend.main:app --reload`
+   - `uvicorn backend.main:app --reload --host 127.0.0.1 --port 8781`
 
 `POST /api/search` now supports text-only queries and rejects out-of-catalog questions.
 
@@ -192,7 +192,7 @@ LangSmith tracing is **enabled by default** (`LANGCHAIN_TRACING_V2=true`).
 2. Install Phase 3 dependencies:
    - `py -m pip install -r requirements.txt`
 3. Run API:
-   - `uvicorn backend.main:app --reload`
+   - `uvicorn backend.main:app --reload --host 127.0.0.1 --port 8781`
 
 ### Phase 3 test script
 
@@ -301,7 +301,7 @@ This verifies:
 Start the server:
 
 ```powershell
-uvicorn backend.main:app --reload
+uvicorn backend.main:app --reload --host 127.0.0.1 --port 8781
 ```
 
 Send a multipart form request to `POST /api/search` with:
@@ -447,7 +447,7 @@ This verifies:
 Start the server:
 
 ```powershell
-uvicorn backend.main:app --reload
+uvicorn backend.main:app --reload --host 127.0.0.1 --port 8781
 ```
 
 Send a multipart form request to `POST /api/search` with:
@@ -583,8 +583,10 @@ py -m pip install -r requirements.txt
 2. Start backend:
 
 ```powershell
-uvicorn backend.main:app --reload
+uvicorn backend.main:app --reload --host 127.0.0.1 --port 8781
 ```
+
+> **Windows note:** If you see `[WinError 10013]` on port 8000, Hyper-V/WSL/Docker may have reserved that port range. Use `--port 8781` (or another free port outside the excluded range) and set `BACKEND_SEARCH_URL` in `.env` to match.
 
 3. Start Chainlit frontend (new terminal):
 

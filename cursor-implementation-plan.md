@@ -19,6 +19,7 @@ Each phase will have:
 ## Phase-by-Phase Task List
 
 ### Phase 0 — Project Baseline & Repo Hygiene (new pre-phase)
+
 - **Build tasks**
   - Create clean project skeleton from section 10
   - Set up `.gitignore` correctly (especially `.venv`, `chroma_db`, `.env`, model/cache artifacts)
@@ -34,6 +35,7 @@ Each phase will have:
 ---
 
 ### Phase 1 — Data Ingestion (Kaggle → Shopify → JSON)
+
 - **Build tasks**
   - `scripts/format_kaggle.py`
   - Shopify import-ready CSV output
@@ -48,6 +50,7 @@ Each phase will have:
 ---
 
 ### Phase 2 — Text RAG Core (No multimodal yet)
+
 - **Build tasks**
   - `scripts/embed_products.py` (text embeddings only first)
   - `backend/rag/retriever.py` basic text retrieval
@@ -62,6 +65,7 @@ Each phase will have:
 ---
 
 ### Phase 3 — LangGraph Skeleton (Text path through graph)
+
 - **Build tasks**
   - `backend/graph/state.py`, `agent.py`, `nodes.py`
   - Nodes: router → fuser → retriever → generator (text only)
@@ -75,6 +79,7 @@ Each phase will have:
 ---
 
 ### Phase 4 — Voice Input (Whisper)
+
 - **Build tasks**
   - `backend/processors/voice.py`
   - Accept audio upload in `/api/search`
@@ -88,6 +93,7 @@ Each phase will have:
 ---
 
 ### Phase 5 — Image Retrieval (CLIP + image collection)
+
 - **Build tasks**
   - `backend/processors/image.py`
   - Add image embedding pipeline and `shopify_images` collection
@@ -101,6 +107,7 @@ Each phase will have:
 ---
 
 ### Phase 6 — Full Multimodal Fusion + Memory
+
 - **Build tasks**
   - Support all 7 modality combinations
   - Better rank merge for text/image results
@@ -114,6 +121,7 @@ Each phase will have:
 ---
 
 ### Phase 7 — Chainlit Frontend UX
+
 - **Build tasks**
   - `frontend/app.py` integration with backend
   - File upload flows (audio/image)
@@ -128,6 +136,7 @@ Each phase will have:
 ---
 
 ### Phase 8 — Evaluation, Hardening, Deployment
+
 - **Build tasks**
   - `evaluation/test_queries.json`
   - `evaluation/ragas_eval.py` (or practical proxy if RAGAS friction)
@@ -169,3 +178,4 @@ Your plan is strong, but I’ll tighten these to avoid overwhelm:
 2. Which Python version is installed currently?
 3. Have you already created the Shopify dev store and custom app token?
 4. Should I start implementing now with **Phase 0** in the repo?
+

@@ -39,6 +39,8 @@ edit_message = true
     max_size_mb = 500
 
 [features.audio]
+    # Show the microphone button in the chat input area
+    enabled = true
     # Threshold for audio recording
     min_decibels = -45
     # Delay for the user to start speaking in MS
