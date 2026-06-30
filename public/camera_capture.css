@@ -1,0 +1,142 @@
+#smartshop-camera-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  margin: 0 0.125rem;
+  flex: 0 0 auto;
+}
+
+#smartshop-camera-button:hover:not(:disabled) {
+  background: hsl(var(--muted) / 0.8);
+}
+
+#smartshop-camera-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+#smartshop-camera-button svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+#smartshop-camera-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.72);
+  padding: 1rem;
+}
+
+#smartshop-camera-dialog {
+  width: min(100%, 28rem);
+  border-radius: 1rem;
+  overflow: hidden;
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+}
+
+#smartshop-camera-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+  font-weight: 600;
+  position: relative;
+}
+
+#smartshop-camera-close {
+  border: none;
+  /* background: transparent; */
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 50%;
+  /* manually added to set the position */
+  position: absolute;
+  top: 30%;
+  right: 0px;
+}
+
+/* #smartshop-camera-close:hover {
+  background: hsl(var(--muted));
+} */
+
+#smartshop-camera-preview-wrap {
+  position: relative;
+  background: #000;
+  aspect-ratio: 4 / 3;
+}
+
+#smartshop-camera-preview,
+#smartshop-camera-still {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#smartshop-camera-still {
+  display: none;
+}
+
+#smartshop-camera-status {
+  min-height: 1.25rem;
+  padding: 0.625rem 1rem 0;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+#smartshop-camera-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 1rem;
+}
+
+.smartshop-camera-action {
+  flex: 1 1 auto;
+  min-width: 6.5rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.625rem;
+  /* background: hsl(var(--background)); */
+  color: inherit;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* .smartshop-camera-action:hover:not(:disabled) {
+  background: hsl(var(--muted));
+} */
+
+.smartshop-camera-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.smartshop-camera-action.primary {
+  /* background: hsl(var(--primary)); */
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.smartshop-camera-action.primary:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
