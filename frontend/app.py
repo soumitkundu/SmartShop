@@ -58,6 +58,8 @@ async def _call_backend(
     audio_bytes: bytes | None,
     audio_name: str,
     image_path: str | None,
+    image_bytes: bytes | None = None,
+    image_name: str = "camera_capture.jpg",
 ) -> dict[str, Any]:
     data = {"session_id": session_id}
     if text:
@@ -71,7 +73,9 @@ async def _call_backend(
         files["audio_file"] = (audio_name, audio_bytes, "audio/wav")
     if image_path:
         image_bytes = Path(image_path).read_bytes()
-        files["image_file"] = (Path(image_path).name, image_bytes, "application/octet-stream")
+        image_name = Path(image_path).name
+    if image_bytes:
+        files["image_file"] = (image_name, image_bytes, "image/jpeg")
 
     timeout = httpx.Timeout(timeout=REQUEST_TIMEOUT_SECONDS)
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -128,6 +132,8 @@ async def _run_search(
     audio_bytes: bytes | None = None,
     audio_name: str = "recording.wav",
     image_path: str | None = None,
+    image_bytes: bytes | None = None,
+    image_name: str = "camera_capture.jpg",
 ) -> None:
     thinking = cl.Message(content="Searching your catalog...")
     await thinking.send()
@@ -140,6 +146,8 @@ async def _run_search(
             audio_bytes=audio_bytes,
             audio_name=audio_name,
             image_path=image_path,
+            image_bytes=image_bytes,
+            image_name=image_name,
         )
     except httpx.TimeoutException:
         await thinking.remove()
@@ -224,11 +232,13 @@ async def on_chat_start() -> None:
     session_id = str(uuid4())
     cl.user_session.set("session_id", session_id)
     cl.user_session.set("audio_chunks", [])
+
     await cl.Message(
         content=(
             "SmartShop assistant is ready.\n\n"
             "- Ask with text\n"
             "- Click the **microphone** in the input bar to record a voice query\n"
+            "- Click the **camera** in the input bar to capture a product photo\n"
             "- Attach an image for visual matching\n"
             "- Attach an audio file for voice query\n\n"
             "When similar products are found, rich product cards will appear with links to your Shopify store."
