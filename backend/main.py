@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -32,7 +33,22 @@ app.add_middleware(
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    text_index_path = Path(settings.TEXT_INDEX_PATH)
+    chroma_path = Path(settings.CHROMA_PATH)
+    llm_configured = bool(settings.GROQ_API_KEY or settings.GOOGLE_API_KEY)
+
+    checks = {
+        "text_index": text_index_path.is_file(),
+        "chroma_db": chroma_path.is_dir(),
+        "llm_configured": llm_configured,
+    }
+    status = "ok" if checks["text_index"] and checks["llm_configured"] else "degraded"
+    return {
+        "status": status,
+        "app": settings.APP_NAME,
+        "checks": checks,
+        "exclude_out_of_stock": settings.EXCLUDE_OUT_OF_STOCK,
+    }
 
 
 def _ensure_text_index() -> None:

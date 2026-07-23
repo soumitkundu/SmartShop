@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "description": "SmartShop evaluation queries across modalities and guardrail cases.",
+  "queries": [
+    {
+      "id": "text-shoes-budget",
+      "modality": "text",
+      "text": "show me walking shoes under 2000",
+      "should_reject": false,
+      "expect_keywords_in_products": ["shoe", "walk", "footwear", "sandal", "sneaker"]
+    },
+    {
+      "id": "text-brand-search",
+      "modality": "text",
+      "text": "nike running shoes",
+      "should_reject": false,
+      "expect_keywords_in_products": ["nike", "shoe", "run", "sport"]
+    },
+    {
+      "id": "text-out-of-catalog-weather",
+      "modality": "text",
+      "text": "what is the weather in Mumbai today?",
+      "should_reject": true
+    },
+    {
+      "id": "text-out-of-catalog-trivia",
+      "modality": "text",
+      "text": "Who won the FIFA world cup in 2010?",
+      "should_reject": true
+    },
+    {
+      "id": "text-category-bags",
+      "modality": "text",
+      "text": "show me handbags and backpacks",
+      "should_reject": false,
+      "expect_keywords_in_products": ["bag", "handbag", "backpack", "purse", "luggage"]
+    },
+    {
+      "id": "text-follow-up-style",
+      "modality": "text",
+      "text": "show me casual shirts",
+      "should_reject": false,
+      "expect_keywords_in_products": ["shirt", "top", "tee", "casual", "wear"]
+    },
+    {
+      "id": "text-in-stock-only",
+      "modality": "text",
+      "text": "show me walking shoes in stock",
+      "should_reject": false,
+      "require_in_stock": true,
+      "expect_keywords_in_products": ["shoe", "walk", "footwear", "sandal", "sneaker"]
+    }
+  ]
+}

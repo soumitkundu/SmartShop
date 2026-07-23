@@ -13,7 +13,7 @@ from backend.rag.prompt import (
     build_user_turn_summary,
     should_reject_query,
 )
-from backend.rag.retriever import ImageRetriever, TextRetriever, merge_retrieval_results
+from backend.rag.retriever import ImageRetriever, TextRetriever, filter_in_stock, merge_retrieval_results
 
 logger = logging.getLogger(__name__)
 
@@ -122,16 +122,27 @@ def retrieve_products(state: AgentState) -> dict:
 
     text_retriever = _get_text_retriever()
     image_retriever = _get_image_retriever()
+    exclude_oos = settings.EXCLUDE_OUT_OF_STOCK
+    top_k = settings.TOP_K_RESULTS
+    fetch_k = top_k * 4 if exclude_oos else top_k
 
     hits: list[dict] = []
     if image_vector and retrieval_query:
-        text_hits = text_retriever.search(retrieval_query, top_k=settings.TOP_K_RESULTS)
+        text_hits = text_retriever.search(
+            retrieval_query,
+            top_k=fetch_k,
+            exclude_out_of_stock=False,
+        )
         if image_retriever is not None:
-            image_hits = image_retriever.search(image_vector, top_k=settings.TOP_K_RESULTS)
+            image_hits = image_retriever.search(
+                image_vector,
+                top_k=fetch_k,
+                exclude_out_of_stock=False,
+            )
             hits = merge_retrieval_results(
                 text_hits,
                 image_hits,
-                settings.TOP_K_RESULTS,
+                fetch_k,
                 rrf_k=settings.FUSION_RRF_K,
                 text_weight=settings.FUSION_TEXT_WEIGHT,
                 image_weight=settings.FUSION_IMAGE_WEIGHT,
@@ -139,9 +150,22 @@ def retrieve_products(state: AgentState) -> dict:
         else:
             hits = text_hits
     elif image_vector and image_retriever is not None:
-        hits = image_retriever.search(image_vector, top_k=settings.TOP_K_RESULTS)
+        hits = image_retriever.search(
+            image_vector,
+            top_k=fetch_k,
+            exclude_out_of_stock=exclude_oos,
+        )
     elif retrieval_query:
-        hits = text_retriever.search(retrieval_query, top_k=settings.TOP_K_RESULTS)
+        hits = text_retriever.search(
+            retrieval_query,
+            top_k=fetch_k,
+            exclude_out_of_stock=exclude_oos,
+        )
+
+    if exclude_oos and image_vector and retrieval_query:
+        hits = filter_in_stock(hits, top_k)
+    elif exclude_oos and hits:
+        hits = hits[:top_k]
 
     prompt_query = retrieval_query or fused_query or ("visual product match" if image_vector else "")
     rejected = should_reject_query(prompt_query, hits)

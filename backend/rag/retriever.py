@@ -58,7 +58,13 @@ class TextRetriever:
 
         return vec, math.sqrt(norm_sq)
 
-    def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
+    def search(
+        self,
+        query: str,
+        top_k: int = 5,
+        *,
+        exclude_out_of_stock: bool = False,
+    ) -> list[dict[str, Any]]:
         q_vec, q_norm = self._query_vector(query)
         if not q_vec or q_norm == 0.0:
             return []
@@ -84,12 +90,16 @@ class TextRetriever:
 
         scored.sort(key=lambda x: x[0], reverse=True)
 
+        fetch_k = top_k * _fetch_multiplier(top_k, exclude_out_of_stock=exclude_out_of_stock)
         out: list[dict[str, Any]] = []
-        for score, idx in scored[:top_k]:
+        for score, idx in scored[:fetch_k]:
             product = dict(self.products[idx])
             product["score"] = round(score, 4)
             out.append(product)
-        return out
+
+        if exclude_out_of_stock:
+            return filter_in_stock(out, top_k)
+        return out[:top_k]
 
 
 def _metadata_to_product(metadata: dict[str, Any], score: float) -> dict[str, Any]:
@@ -131,13 +141,20 @@ class ImageRetriever:
                 "Run scripts/embed_product_images.py first."
             ) from exc
 
-    def search(self, image_vector: list[float], top_k: int = 5) -> list[dict[str, Any]]:
+    def search(
+        self,
+        image_vector: list[float],
+        top_k: int = 5,
+        *,
+        exclude_out_of_stock: bool = False,
+    ) -> list[dict[str, Any]]:
         if not image_vector:
             return []
 
+        fetch_k = top_k * _fetch_multiplier(top_k, exclude_out_of_stock=exclude_out_of_stock)
         results = self._collection.query(
             query_embeddings=[image_vector],
-            n_results=top_k,
+            n_results=fetch_k,
             include=["metadatas", "distances", "documents"],
         )
 
@@ -154,7 +171,31 @@ class ImageRetriever:
             if score <= 0.0:
                 continue
             out.append(_metadata_to_product(metadata, score))
-        return out
+
+        if exclude_out_of_stock:
+            return filter_in_stock(out, top_k)
+        return out[:top_k]
+
+
+def is_in_stock(product: dict[str, Any]) -> bool:
+    """Treat missing inventory as available; exclude explicit zero stock."""
+    qty = product.get("inventory_quantity")
+    if qty is None:
+        return True
+    try:
+        return int(qty) > 0
+    except (TypeError, ValueError):
+        return True
+
+
+def filter_in_stock(hits: list[dict[str, Any]], top_k: int) -> list[dict[str, Any]]:
+    return [hit for hit in hits if is_in_stock(hit)][:top_k]
+
+
+def _fetch_multiplier(top_k: int, *, exclude_out_of_stock: bool) -> int:
+    if not exclude_out_of_stock:
+        return 1
+    return max(4, min(20, top_k * 4))
 
 
 def _product_key(hit: dict[str, Any]) -> str:
