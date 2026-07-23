@@ -165,6 +165,7 @@ def build_catalog_prompt(
         "- Answer ONLY from the catalog context.\n"
         "- If information is missing, say it is not available in the catalog.\n"
         "- Do not invent products or prices.\n"
+        "- Only recommend in-stock items from the context; never suggest zero-stock products.\n"
         "- Use prior conversation only to resolve follow-up references (e.g. 'the first one').\n"
         "- Keep response concise and helpful.\n\n"
         f"{history_block}"

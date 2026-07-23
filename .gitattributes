@@ -1,0 +1,3 @@
+# Keep shell scripts Unix-compatible for Docker / Hugging Face builds.
+*.sh text eol=lf
+Dockerfile text eol=lf

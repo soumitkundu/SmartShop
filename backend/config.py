@@ -19,6 +19,12 @@ class Settings:
 
     # RAG / retrieval knobs (used later)
     TOP_K_RESULTS: int = int(getenv("TOP_K_RESULTS", "5") or 5)
+    EXCLUDE_OUT_OF_STOCK: bool = (getenv("EXCLUDE_OUT_OF_STOCK", "true") or "true").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
     # Phase 6 — bounded conversation memory (user+assistant turn pairs)
     MEMORY_WINDOW_TURNS: int = int(getenv("MEMORY_WINDOW_TURNS", "6") or 6)
