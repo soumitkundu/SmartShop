@@ -1,0 +1,39 @@
+# Deploy SmartShop to Hugging Face Space via Trusted Publishers (OIDC).
+# Requires HF Space Settings → Trusted Publishers:
+#   Provider: GitHub Actions
+#   Repository: soumitkundu/SmartShop
+#   Branch: main
+#   Workflow: publish.yml
+#
+# Docs: https://huggingface.co/docs/hub/trusted-publishers
+
+name: Publish to Hugging Face Space
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the hf CLI
+        run: |
+          curl -LsSf https://hf.co/cli/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Sync repo to Hugging Face Space
+        env:
+          # Must match Trusted Publisher target Space (spaces/ prefix required).
+          HF_OIDC_RESOURCE: spaces/soumitkundu/smartshop
+        run: |
+          hf upload soumitkundu/smartshop . . \
+            --repo-type=space \
+            --commit-message "Deploy from GitHub ${GITHUB_SHA::7}"

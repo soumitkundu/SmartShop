@@ -21,19 +21,31 @@ Public Space URL after deploy:
 
 ---
 
-## 2. Connect GitHub repository
+## 2. Connect GitHub → Space (choose one path)
 
-1. Open [https://huggingface.co/spaces/soumitkundu/smartshop/settings](https://huggingface.co/spaces/soumitkundu/smartshop/settings)
-2. Under **Repository**, choose **Connect to GitHub**
-3. Authorize Hugging Face if prompted
-4. Select your SmartShop GitHub repository
-5. Select branch: `main` (or your default deploy branch)
-6. Save
+### Option A — Trusted Publishers + GitHub Actions (recommended if “Connect repository” is missing)
 
-From now on, every push to the linked branch triggers a Space rebuild.
+Hugging Face **Trusted Publishers** alone does **not** sync or build anything. It only allows a GitHub Actions workflow to push to the Space without storing an `HF_TOKEN`.
 
-> **Requirement:** `Dockerfile` must exist at the repository root (already added in Phase 8).
+1. In Space **Settings → Trusted Publishers**, add:
+   - Provider: **GitHub Actions**
+   - Repository: `soumitkundu/SmartShop`
+   - Branch: `main`
+   - Workflow: **`publish.yml`** (exact filename under `.github/workflows/`)
+2. Ensure `.github/workflows/publish.yml` exists in the GitHub repo (this project includes it).
+3. Push to `main` (or run the workflow manually under GitHub **Actions**).
+4. After the workflow uploads files, the Space Docker build starts automatically.
 
+### Option B — Push the Space git remote directly
+
+```powershell
+git remote add hf https://huggingface.co/spaces/soumitkundu/smartshop
+git push hf main:main
+```
+
+Use an HF write token as the password when prompted.
+
+> Note: Older “Connect to GitHub” UI is not always shown. Trusted Publishers + Actions is the current CI path.
 ---
 
 ## 3. Add Space secrets
